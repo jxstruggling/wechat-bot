@@ -16,6 +16,7 @@ const aliasWhiteList = env.ALIAS_WHITELIST ? env.ALIAS_WHITELIST.split(',') : []
 const roomWhiteList = env.ROOM_WHITELIST ? env.ROOM_WHITELIST.split(',') : []
 
 import { getServe } from './serve.js'
+import { saveMessage } from './saveMessage.js'
 
 /**
  * 默认消息发送
@@ -35,15 +36,20 @@ export async function defaultMessage(msg, bot, ServiceType = 'GPT') {
   const remarkName = await contact.alias() // 备注名称
   const name = await contact.name() // 微信名称
   const isText = msg.type() === bot.Message.Type.Text // 消息类型是否为文本
-  const isRoom = roomWhiteList.includes(roomName) && content.includes(`${botName}`) // 是否在群聊白名单内并且艾特了机器人
+  const isInRoomWhiteList = roomWhiteList.includes(roomName) // 是否在群聊白名单
+  const isRoomAndATBot = roomWhiteList.includes(roomName) && content.includes(`${botName}`) // 是否在群聊白名单内并且艾特了机器人
   const isAlias = aliasWhiteList.includes(remarkName) || aliasWhiteList.includes(name) // 发消息的人是否在联系人白名单内
   const isBotSelf = botName === `@${remarkName}` || botName === `@${name}` // 是否是机器人自己
   // TODO 你们可以根据自己的需求修改这里的逻辑
+  // 添加存储群消息记录的逻辑
+  if (isInRoomWhiteList && room) {
+    saveMessage(msg, bot)
+  }
   if (isBotSelf || !isText) return // 如果是机器人自己发送的消息或者消息类型不是文本则不处理
   try {
     // 区分群聊和私聊
     // 群聊消息去掉艾特主体后，匹配自动回复前缀
-    if (isRoom && room && content.replace(`${botName}`, '').trimStart().startsWith(`${autoReplyPrefix}`)) {
+    if (isRoomAndATBot && room && content.replace(`${botName}`, '').trimStart().startsWith(`${autoReplyPrefix}`)) {
       const question = (await msg.mentionText()) || content.replace(`${botName}`, '').replace(`${autoReplyPrefix}`, '') // 去掉艾特的消息主体
       console.log('🌸🌸🌸 / question: ', question)
       const response = await getReply(question)
